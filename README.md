@@ -1,174 +1,147 @@
-# CMake Project Template
+# C++ Template Constraints Exploration
 
-## Pre-Requisites
-- Install Visual Studio Code
-	- Add CMake Extension
-- Install Microsoft Visual Studio 2022
-	- Install v143
-- Install vcpkg or conan
+This code demonstrates various approaches to constraining templates in C++, from traditional SFINAE techniques to modern C++20 concepts.
 
-## Setup Package Managers
-### Using vcpkg
-Don't need to do anything, just configure normally
+## Table of Contents
+1. [Traditional SFINAE Approaches](#traditional-sfinae-approaches)
+2. [C++20 Concepts](#c20-concepts)
+3. [Requires Expressions](#requires-expressions)
+4. [Mocking and Testing](#mocking-and-testing)
 
-### Using conan
-```shell
-conan install . -s build_type=Debug -s compiler.cppstd=20 --build=missing # will locally build any missing deps, might take time at first call
-```
+## Traditional SFINAE Approaches
 
-This tutorial shows how to create a C++ "Hello World" program that uses the fmt library with CMake and vcpkg.
-
-Articles:
-- [Tutorial: Install and use packages with CMake](https://learn.microsoft.com/en-us/vcpkg/get_started/get-started)
-- [Tutorial: Install and use packages with CMake in Visual Studio](https://learn.microsoft.com/en-us/vcpkg/get_started/get-started-vs)
-
-## How to Run this?
-### Preparation
-- [Set Up `vcpkg`](#1-set-up-vcpkg) (Follow steps below on How to Recreate)
-- [Manually create `CMakeUserPresets.json`](#create-cmake-preset-files) in `{Project Root}/CMakeUserPresets.json`
-- Open vcpkg or
-- Install all pre-configured packages
-  ```bash
-  vcpkg install
-  ```
-
-### Run in VS Code
-- Run Task: `Configure`
-- Run Task: `Clean -> Build -> Run`
-
-> **Note:** You can check `.vscode/tasks.json` if you want to see what cmd script is being run for each task
-
-## How to Recreate
-
-### Prerequisites
-
-- A terminal
-- A C++ compiler (MSVC for Windows users)
-- CMake
-- Git
-
-### 1. Set up vcpkg
-
-#### Clone the repository
-
-```bash
-git clone https://github.com/microsoft/vcpkg.git
-
-# optionally move to C:
-mv vcpkg C:/
-```
-
-#### Run the bootstrap script
-
-Navigate to the vcpkg directory and run:
-
-```bash
-cd vcpkg && bootstrap-vcpkg.bat
-```
-
-#### Integrate with Visual Studio MSBuild
-
-```bash
-.\vcpkg.exe integrate install
-```
-
-### 2. Set up the project
-
-### 3. Add dependencies and project files
-
-#### Create manifest file
-
-- create `vcpkg.json` at root of project, add all needed dependencies
-
-```json
-{
-    "dependencies": [
-        "fmt",
-        "paho-mqttpp3",
-        "cppwinrt"
-    ]
-}
-```
-
-#### Create CMakeLists.txt
-
-```cmake
-cmake_minimum_required(VERSION 3.10)
-
-project(HelloWorld)
-
-set(CMAKE_CXX_STANDARD 17)
-
-find_package(fmt CONFIG REQUIRED)
-find_package(PahoMqttCpp CONFIG REQUIRED)
-find_package(cppwinrt CONFIG REQUIRED)
-
-add_executable(HelloWorld helloworld.cpp)
-
-target_link_libraries(HelloWorld
-    PRIVATE
-        windowsapp # REQUIRED!
-        fmt::fmt
-        PahoMqttCpp::paho-mqttpp3
-        Microsoft::CppWinRT
-)
-```
-
-#### Include all vcpkg headers
-
+### `foo1` - Type Alias SFINAE
 ```cpp
-#include <fmt/core.h>
-#include <winrt/base.h>
-#include <mqtt/async_client.h>
-// ...
-
-int main()
-{
-    // ...
-}
+template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
+void foo1(T value);
 ```
+- Uses a default template parameter with `std::enable_if_t`
+- The function is only available when `T` is integral
+- The second template parameter becomes `void` when the condition is true
 
-#### Create CMake preset files
-
-**CMakePresets.json:**
-
-```json
-{
-  "version": 2,
-  "configurePresets": [
-    {
-      "name": "my-vcpkg-cmake-preset",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build",
-      "cacheVariables": {
-        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
-      }
-    }
-  ]
-}
+### `foo2` - Non-type Template Parameter SFINAE
+```cpp
+template <typename T, std::enable_if_t<std::is_floating_point<T>::value, bool> = true>
+void foo2(T value);
 ```
+- Uses a non-type template parameter with default value `true`
+- More readable than the type alias approach
 
-> **Note:** For a more advanced `CMakePresets.json`, check out one in thsi project
-
-**CMakeUserPresets.json:**
-
-```json
-{
-  "version": 2,
-  "configurePresets": [
-    {
-      "name": "default",
-      "inherits": "my-vcpkg-cmake-preset",
-      "environment": {
-        "VCPKG_ROOT": "<path to vcpkg>" // "VCPKG_ROOT": "C:/vcpkg"
-      }
-    }
-  ]
-}
+### `foo3` - Return Type SFINAE
+```cpp
+template <typename T>
+std::enable_if_t<std::is_floating_point<T>::value> foo3(T value);
 ```
+- Uses `std::enable_if_t` in the return type
+- The return type becomes `void` when the condition is met
 
-> **Note:** Replace `<path to vcpkg>` with your actual vcpkg installation path. Don't commit CMakeUserPresets.json to version control.
+## C++20 Concepts
 
-## References
+### Basic Concept Definition
+```cpp
+template<typename T>
+concept IntegralConcept = std::is_integral_v<T>;
 
-- (vcpkg integration with CMake projects)[https://learn.microsoft.com/en-us/vcpkg/users/buildsystems/cmake-integration]
+template<typename T>
+concept MyIntegralConcept = MyIntegral<T>::value;
+```
+- Concepts provide a more readable and expressive way to specify constraints
+- Can be built from type traits or custom traits
+
+### Concept Usage in Functions
+```cpp
+void fooC(MyIntegralConcept auto value);
+template<MyIntegralConcept I> I add2(I x, I y);
+template<typename T> requires std::is_integral_v<T> T add3(T a, T b);
+```
+- Three ways to apply concepts:
+  1. `ConceptName auto` parameter
+  2. Template parameter with concept
+  3. `requires` clause
+
+### Operator Overloading with Concepts
+```cpp
+Vec3 operator+(const Vec3 v, std::integral auto s);
+```
+- Concepts can be used to constrain operator overloads
+- Here, the scalar must be an integral type
+
+## Requires Expressions
+
+### Simple Requirement
+```cpp
+template<typename T>
+concept C = requires(T p[2]) {
+    (decltype(p)) nullptr;
+    (int*) nullptr;
+};
+```
+- Checks if expressions are valid
+- In this case, verifies pointer conversions
+
+### Compound Requirements
+```cpp
+template<typename T>
+concept UserTypeConcept = 
+    requires(T t) {
+        { t.username } -> std::convertible_to<std::string>;
+    } && requires {
+        { std::declval<T>().email } -> std::convertible_to<std::string>;
+    };
+```
+- `{ expression } -> concept` syntax checks both:
+  - The expression is valid
+  - The result satisfies the concept
+- `std::declval<T>()` allows checking without constructing an object
+
+## Mocking and Testing
+
+### Digital Input Concept
+```cpp
+template <typename T>
+concept DigitalInputConcept = requires {
+    { std::declval<T>().init() } -> std::same_as<void>;
+    { std::declval<T>().read() } -> std::same_as<int>;
+};
+```
+- Defines interface requirements for digital input devices
+- Both return types are checked precisely
+
+### Concept-Based Button Class
+```cpp
+template<DigitalInputConcept DIn>
+class ButtonWithConcept {
+    // Uses constrained template parameter
+};
+```
+- Clean, readable constraint syntax
+- Clear error messages when constraints are violated
+
+### SFINAE-Based Alternative
+```cpp
+template<typename T>
+class is_digital_input {
+    // Complex SFINAE detection using decltype and overload resolution
+};
+
+template <typename DIn, typename = std::enable_if_t<is_digital_input<DIn>::value>>
+class ButtonWithSfinae;
+```
+- More verbose and harder to read
+- Achieves the same goal as concepts but with more boilerplate
+
+## Key Benefits of Concepts Over SFINAE
+
+1. **Readability**: Concepts provide clear, self-documenting constraints
+2. **Better Error Messages**: Compiler errors directly reference concept violations
+3. **Expressiveness**: More natural syntax for expressing requirements
+4. **Maintainability**: Easier to understand and modify constraints
+
+## Testing Strategy
+
+The code demonstrates testing with mock objects:
+- `MockedDigitalInput` and `MockedDigitalInput2` simulate hardware
+- Both concept and SFINAE approaches can use the same mock
+- Invalid types like `MalformedInput` are correctly rejected at compile time
+
+This exploration shows the evolution of template constraints in C++, with concepts representing a significant improvement in usability and clarity over traditional SFINAE techniques.

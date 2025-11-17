@@ -133,6 +133,18 @@ public:
 	int read();
 };
 
+class MockedDigitalInput {
+public:
+	void init() {}
+	int read() { return value_; }
+
+	void set_value(int v) { value_ = v; }
+private:
+	int value_{};
+};
+
+class MalformedDigitalInput { /* no init(), no read() */ };
+
 // --------- CONCEPT --------- 
 template <typename T>
 concept DigitalInputConcept = requires {
@@ -154,17 +166,6 @@ public:
 private:
 	DIn *digitalInput_;
 };
-
-class MockedDigitalInput {
-public:
-	void init() {}
-	int read() { return value_; }
-
-	void set_value(int v) { value_ = v; }
-private:
-	int value_{};
-};
-
 void test_button_concept() {
 	MockedDigitalInput input;
 	ButtonWithConcept<MockedDigitalInput> button(&input);
@@ -216,31 +217,19 @@ private:
 	DIn *digitalInput_;
 };
 
-class MockedDigitalInput2 {
-public:
-	void init() {}
-	int read() { return value_; }
-	void set_value(int v) { value_ = v; }
-
-private:
-	int value_{};
-};
-
 void test_button_sfinae() {
-	MockedDigitalInput2 input;
-	ButtonWithSfinae<MockedDigitalInput2> button(&input);
+	MockedDigitalInput input;
+	ButtonWithSfinae<MockedDigitalInput> button(&input);
 
 	input.set_value(42);
 	std::cout << button.read() << std::endl;
 	assert(button.read() == 42);
 }
 
-class MalformedInput { /* no init(), no read() */ };
-
 void test_malformed_button() {
-    MalformedInput malformedInput;
-    // ButtonWithSfinae<MalformedInput> buttonSfin(&malformedInput);  // SFINAE in action! Compile error
-    // ButtonWithConcept<MalformedInput> buttonCon(&malformedInput);  // SFINAE in action! Compile error
+    MalformedDigitalInput malformedInput;
+    // ButtonWithSfinae<MalformedDigitalInput> buttonSfin(&malformedInput);  // SFINAE in action! Compile error
+    // ButtonWithConcept<MalformedDigitalInput> buttonCon(&malformedInput);  // SFINAE in action! Compile error
 }
 
 int main()
