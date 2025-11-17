@@ -2,6 +2,7 @@
 #include <iostream>
 #include <type_traits>
 #include <print>
+#include <cassert>
 
 //================================
 // 			FOO CHECK
@@ -120,12 +121,14 @@ static_assert(std::same_as<int, int>);
 //================================
 // 			MOCKING
 //================================
+// --------- GENERAL --------- 
 class DigitalIn {
 public:
 	void init();
 	int read();
 };
 
+// --------- CONCEPT --------- 
 template <typename T>
 concept DigitalInputConcept = requires {
 	{ std::declval<T>().init() } -> std::same_as<void>;
@@ -157,8 +160,7 @@ private:
 	int value_{};
 };
 
-#include <cassert>
-void test_button() {
+void test_button_concept() {
 	MockedDigitalInput input;
 	Button<MockedDigitalInput> button(&input);
 
@@ -167,11 +169,89 @@ void test_button() {
 	assert(button.read() == 100);
 }
 
+// --------- SFINAE --------- 
+template<typename T>
+class is_digital_input {
+private:
+	template<typename U>
+	static auto test_init(int) -> decltype(std::declval<U>().init(), std::true_type{});
+	
+	template<typename U>
+	static auto test_init(...) -> std::false_type;
+
+	template<typename U>
+	static auto test_read(int) -> decltype(std::declval<U>().read(), std::true_type{});
+	
+	template<typename U>
+	static auto test_read(...) -> std::false_type;
+
+public:
+	static constexpr bool value =
+		decltype(test_init<T>(0))::value &&
+		decltype(test_read<T>(0))::value;
+};
+
+template <typename DIn, typename = std::enable_if_t<is_digital_input<DIn>::value>>
+class Button2 {
+public:
+	Button2(DIn *input) : digitalInput_(input) {}
+
+	void init() {
+		digitalInput_->init();
+		// rest of logic...
+	}
+
+	int read() {
+		return digitalInput_->read();
+	}
+
+private:	
+	DIn *digitalInput_;
+};
+
+template <typename DIn>
+class Button2<DIn, std::enable_if_t<is_digital_input<DIn>::value>> {
+public:
+	Button2(DIn *input) : digitalInput_(input) {}
+
+	void init() {
+		digitalInput_->init();
+		// rest of logic...
+	}
+
+	int read() {
+		return digitalInput_->read();
+	}
+
+private:	
+	DIn *digitalInput_;
+};
+
+class MockedDigitalInput2 {
+public:
+	void init() {}
+	int read() { return value_; }
+	void set_value(int v) { value_ = v; }
+
+private:
+	int value_{};
+};
+
+void test_button_sfinae() {
+	MockedDigitalInput2 input;
+	Button2<MockedDigitalInput2> button(&input);
+
+	input.set_value(42);
+	std::cout << button.read() << std::endl;
+	assert(button.read() == 42);
+}
+
 int main()
 {
 	// foo2(1);
 	std::println("{}", add3(1, 2));
-	test_button();
+	test_button_concept();
+	test_button_sfinae();
 
 	return 0;
 }
