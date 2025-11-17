@@ -117,10 +117,61 @@ static_assert(UserTypeDeclValConcept<User>);
 // static_assert(UserType<MalformedUser>); // will fail, because username type is int
 static_assert(std::same_as<int, int>);
 
+//================================
+// 			MOCKING
+//================================
+class DigitalIn {
+public:
+	void init();
+	int read();
+};
+
+template <typename T>
+concept DigitalInputConcept = requires {
+	{ std::declval<T>().init() } -> std::same_as<void>;
+	{ std::declval<T>().read() } -> std::same_as<int>;
+};
+
+template<DigitalInputConcept DIn>
+class Button {
+public:
+	Button(DIn* input): digitalInput_(input) {}
+	void init() {
+		digitalInput_->init();
+		// rest of logic...
+	}
+	int read() {
+		return digitalInput_->read();
+	}
+private:
+	DIn *digitalInput_;
+};
+
+class MockedDigitalInput {
+public:
+	void init() {}
+	int read() { return value_; }
+
+	void set_value(int v) { value_ = v; }
+private:
+	int value_{};
+};
+
+#include <cassert>
+void test_button() {
+	MockedDigitalInput input;
+	Button<MockedDigitalInput> button(&input);
+
+	input.set_value(100);
+	std::println("{}", button.read());
+	assert(button.read() == 100);
+}
+
 int main()
 {
 	// foo2(1);
-	std::printf("%d", add3(1, 2));
+	std::println("{}", add3(1, 2));
+	test_button();
 
 	return 0;
 }
