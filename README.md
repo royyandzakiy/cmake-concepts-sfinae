@@ -7,6 +7,7 @@ This code demonstrates various approaches to constraining templates in C++, from
 2. [C++20 Concepts](#c20-concepts)
 3. [Requires Expressions](#requires-expressions)
 4. [Mocking and Testing](#mocking-and-testing)
+5. [Runtime Type Detection with Concepts](#runtime-type-detection-with-concepts)
 
 ## Traditional SFINAE Approaches
 
@@ -130,12 +131,53 @@ class ButtonWithSfinae;
 - More verbose and harder to read
 - Achieves the same goal as concepts but with more boilerplate
 
+## Runtime Type Detection with Concepts
+
+### Concept-Based Type Traits
+```cpp
+template<typename T>
+constexpr bool is_digital_input_v = 
+    requires(T t) { 
+        t.init(); 
+        t.read(); 
+    };
+```
+- Creates a boolean value that can be used at compile-time or runtime
+- Uses `requires` expression directly in a variable template
+
+### Conditional Compilation with `if constexpr`
+```cpp
+template<typename T>
+void processSensor(T& sensor) {
+    if constexpr (is_digital_input_v<T>) {
+        sensor.init();
+        bool data = sensor.read();
+        std::cout << "Digital data: " << data << "\n";
+    } else {
+        std::cout << "Not a digital input sensor\n";
+    }
+}
+```
+- **Compile-time branching**: The unused branch is discarded during compilation
+- **Type-safe**: Each code path only compiles for appropriate types
+- **Runtime efficiency**: No runtime type checks or virtual calls
+
+### Example Usage
+```cpp
+DigitalSensor ds;    // Has init() and read() methods
+AnalogSensor as;     // Has setup() and getValue() methods
+
+processSensor(ds);   // Uses digital path: calls init() and read()
+processSensor(as);   // Uses fallback path: prints message
+```
+
 ## Key Benefits of Concepts Over SFINAE
 
 1. **Readability**: Concepts provide clear, self-documenting constraints
 2. **Better Error Messages**: Compiler errors directly reference concept violations
 3. **Expressiveness**: More natural syntax for expressing requirements
 4. **Maintainability**: Easier to understand and modify constraints
+5. **Runtime Flexibility**: Can combine compile-time constraints with runtime branching using `if constexpr`
 
 ## Testing Strategy
 
@@ -143,5 +185,31 @@ The code demonstrates testing with mock objects:
 - `MockedDigitalInput` and `MockedDigitalInput2` simulate hardware
 - Both concept and SFINAE approaches can use the same mock
 - Invalid types like `MalformedInput` are correctly rejected at compile time
+- Runtime detection allows graceful handling of incompatible types
 
-This exploration shows the evolution of template constraints in C++, with concepts representing a significant improvement in usability and clarity over traditional SFINAE techniques.
+## Advanced Pattern: Hybrid Approach
+
+The new code demonstrates a powerful hybrid pattern:
+
+```cpp
+// Compile-time concept checking
+template<typename T>
+constexpr bool is_digital_input_v = requires(T t) { t.init(); t.read(); };
+
+// Runtime branching based on compile-time information
+template<typename T>
+void processSensor(T& sensor) {
+    if constexpr (is_digital_input_v<T>) {
+        // Digital sensor specific code
+    } else {
+        // Generic fallback code
+    }
+}
+```
+
+This approach combines:
+- **Compile-time safety**: Ensures interface requirements are met
+- **Runtime flexibility**: Different code paths for different types
+- **Zero-cost abstraction**: No runtime overhead for type checking
+
+This exploration shows the evolution of template constraints in C++, with concepts representing a significant improvement in usability and clarity over traditional SFINAE techniques, while also enabling new patterns like the hybrid compile-time/runtime approach demonstrated in the sensor example.
