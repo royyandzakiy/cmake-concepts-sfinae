@@ -9,14 +9,19 @@
 //================================
 // --------- PRE-CONCEPT --------- 
 template <typename T, typename = std::enable_if_t<std::is_integral<T>::value>>
-void foo(T value) {
+void foo1(T value) {
 	std::cout << "Value is " << value << '\n';
 };
 
-template <typename T, std::enable_if_t<std::is_floating_point<T>::value>>
+template <typename T, std::enable_if_t<std::is_floating_point<T>::value, bool> = true>
 void foo2(T value) {
 	std::cout << "Value is " << value << '\n';
-}
+};
+
+template <typename T>
+std::enable_if_t<std::is_floating_point<T>::value> foo3(T value) {
+	std::cout << "Value is " << value << '\n';
+};
 
 // --------- CONCEPT --------- 
 
@@ -39,7 +44,7 @@ static_assert(IntegralConcept<int>);
 static_assert(MyIntegralConcept<int>);
 // static_assert(IntegralConcept<float>);
 
-void foo3(MyIntegralConcept auto value) {
+void fooC(MyIntegralConcept auto value) {
 	std::cout << "Value is " << value << '\n';
 }
 
@@ -136,9 +141,9 @@ concept DigitalInputConcept = requires {
 };
 
 template<DigitalInputConcept DIn>
-class Button {
+class ButtonWithConcept {
 public:
-	Button(DIn* input): digitalInput_(input) {}
+	ButtonWithConcept(DIn* input): digitalInput_(input) {}
 	void init() {
 		digitalInput_->init();
 		// rest of logic...
@@ -162,7 +167,7 @@ private:
 
 void test_button_concept() {
 	MockedDigitalInput input;
-	Button<MockedDigitalInput> button(&input);
+	ButtonWithConcept<MockedDigitalInput> button(&input);
 
 	input.set_value(100);
 	std::println("{}", button.read());
@@ -192,27 +197,11 @@ public:
 };
 
 template <typename DIn, typename = std::enable_if_t<is_digital_input<DIn>::value>>
-class Button2 {
+class ButtonWithSfinae {
+    static_assert(is_digital_input<DIn>::value, 
+                  "DIn must have init() and read() methods");
 public:
-	Button2(DIn *input) : digitalInput_(input) {}
-
-	void init() {
-		digitalInput_->init();
-		// rest of logic...
-	}
-
-	int read() {
-		return digitalInput_->read();
-	}
-
-private:	
-	DIn *digitalInput_;
-};
-
-template <typename DIn>
-class Button2<DIn, std::enable_if_t<is_digital_input<DIn>::value>> {
-public:
-	Button2(DIn *input) : digitalInput_(input) {}
+	ButtonWithSfinae(DIn *input) : digitalInput_(input) {}
 
 	void init() {
 		digitalInput_->init();
@@ -239,19 +228,30 @@ private:
 
 void test_button_sfinae() {
 	MockedDigitalInput2 input;
-	Button2<MockedDigitalInput2> button(&input);
+	ButtonWithSfinae<MockedDigitalInput2> button(&input);
 
 	input.set_value(42);
 	std::cout << button.read() << std::endl;
 	assert(button.read() == 42);
 }
 
+class MalformedInput { /* no init(), no read() */ };
+
+void test_malformed_button() {
+    MalformedInput malformedInput;
+    // ButtonWithSfinae<MalformedInput> buttonSfin(&malformedInput);  // SFINAE in action! Compile error
+    // ButtonWithConcept<MalformedInput> buttonCon(&malformedInput);  // SFINAE in action! Compile error
+}
+
 int main()
 {
-	// foo2(1);
+	foo1(1);
+	foo2(2.5f);
+	foo3(3.7f);
 	std::println("{}", add3(1, 2));
 	test_button_concept();
 	test_button_sfinae();
+	test_malformed_button();
 
 	return 0;
 }
