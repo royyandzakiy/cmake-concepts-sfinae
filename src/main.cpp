@@ -127,7 +127,7 @@ static_assert(std::same_as<int, int>);
 // 			MOCKING
 //================================
 // --------- GENERAL --------- 
-class DigitalIn {
+class DigitalIn { // This is NOT used, it acts as reference to be "followed" by Mocks without doing polimorphism, enforced by Concept & SFINAE based trait detection (by creating custom type traits)
 public:
 	void init();
 	int read();
@@ -197,6 +197,15 @@ public:
 		decltype(test_read<T>(0))::value;
 };
 
+// C++17
+template<typename T>
+constexpr bool is_digital_input_2_v = 
+    requires(T t) { t.init(); t.read(); };
+
+// Or with concepts (C++20)
+template<typename T>
+concept digital_input_3 = requires(T t) { t.init(); t.read(); };
+
 template <typename DIn, typename = std::enable_if_t<is_digital_input<DIn>::value>>
 class ButtonWithSfinae {
     static_assert(is_digital_input<DIn>::value, 
@@ -232,15 +241,74 @@ void test_malformed_button() {
     // ButtonWithConcept<MalformedDigitalInput> buttonCon(&malformedInput);  // SFINAE in action! Compile error
 }
 
+//================================
+// 			MOCKING 2
+//================================
+class DigitalSensor {
+public:
+    void init() { std::cout << "Sensor initialized\n"; }
+    bool read() { return true; }
+};
+
+class AnalogSensor {
+public:
+    void setup() {}  // wrong method names
+    int getValue() { return 42; }
+};
+
+template<typename T>
+constexpr bool is_digital_input_v = 
+    requires(T t) { 
+        t.init(); 
+        t.read(); 
+    };
+
+// Template constraints
+template<typename T>
+void processSensor(T& sensor) {
+	if constexpr (is_digital_input_v<T>) {
+		sensor.init();
+		bool data = sensor.read();
+		std::cout << "Digital data: " << data << "\n";
+	} else {
+		std::cout << "Not a digital input sensor\n";
+	}
+}
+
+// Usage
+void test_digital_sensor() {
+    std::cout << "DigitalSensor is digital input: " 
+              << (is_digital_input_v<DigitalSensor> ? "true" : "false") << "\n";  // true
+    
+    std::cout << "AnalogSensor is digital input: " 
+              << (is_digital_input_v<AnalogSensor> ? "true" : "false") << "\n";   // false
+    
+    DigitalSensor ds;
+    AnalogSensor as;
+    processSensor(ds);  // Uses digital path
+    processSensor(as);  // Uses fallback path
+}
+
+//================================
+// 			MAIN
+//================================
 int main()
 {
+	std::println("-------- FOO CHECK --------");
 	foo1(1);
 	foo2(2.5f);
 	foo3(3.7f);
+	
+	std::println("-------- ADD CHECK --------");
 	std::println("{}", add3(1, 2));
+	
+	std::println("-------- MOCKING 1 --------");
 	test_button_concept();
 	test_button_sfinae();
 	test_malformed_button();
+	
+	std::println("-------- MOCKING 2 --------");
+	test_digital_sensor();
 
 	return 0;
 }
