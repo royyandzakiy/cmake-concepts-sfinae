@@ -185,26 +185,32 @@ constexpr bool is_digital_input_new_sfinae_type_trait_v = is_digital_input_new_s
 template<typename T>
 concept digital_input_concept = requires(T t) { t.init(); t.read(); };
 
-// ---- C++11 ---- 
+// ---- 1. C++11 ---- 
 // template <typename DIn, typename = std::enable_if_t<is_digital_input_old_sfinae_type_trait<DIn>::value>>
 // class ButtonWithSfinae {
 //     static_assert(is_digital_input_old_sfinae_type_trait<DIn>::value, 
 //                   "DIn must have init() and read() methods");
 
-// ---- C++17 (only static_assert) ---- 
+// ---- 2. C++17 (only static_assert) ---- 
 // template <typename DIn>
 // class ButtonWithSfinae {
 //     static_assert(std::is_same_v<decltype(std::declval<DIn>().init()), void> &&
 //                   std::is_same_v<decltype(std::declval<DIn>().read()), int>, 
 //                   "DIn must have init() and read() methods");
 
-// ---- C++17 (Sfinae) ---- 
+// ---- 3. C++17 (only static_assert type trait) ---- 
+// template <typename DIn>
+// class ButtonWithSfinae {
+//     static_assert(is_digital_input_new_sfinae_type_trait_v<DIn>, 
+//                   "DIn must have init() and read() methods");
+
+// ---- 4. C++17 (Sfinae + type trait) ---- 
 template <typename DIn, typename = std::enable_if_t<is_digital_input_new_sfinae_type_trait_v<DIn>>>
 class ButtonWithSfinae {
     static_assert(is_digital_input_new_sfinae_type_trait_v<DIn>, 
                   "DIn must have init() and read() methods");
 
-// ---- C++20 ---- 
+// ---- 5. C++20 ---- 
 // template <digital_input_concept DIn>
 // class ButtonWithSfinae {
 public:
