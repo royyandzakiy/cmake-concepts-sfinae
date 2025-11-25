@@ -145,39 +145,10 @@ private:
 
 class MalformedDigitalInput { /* no init(), no read() */ };
 
-// --------- CONCEPT --------- 
-template <typename T>
-concept DigitalInputConcept = requires {
-	{ std::declval<T>().init() } -> std::same_as<void>;
-	{ std::declval<T>().read() } -> std::same_as<int>;
-};
-
-template<DigitalInputConcept DIn>
-class ButtonWithConcept {
-public:
-	ButtonWithConcept(DIn* input): digitalInput_(input) {}
-	void init() {
-		digitalInput_->init();
-		// rest of logic...
-	}
-	int read() {
-		return digitalInput_->read();
-	}
-private:
-	DIn *digitalInput_;
-};
-void test_button_concept() {
-	MockedDigitalInput input;
-	ButtonWithConcept<MockedDigitalInput> button(&input);
-
-	input.set_value(100);
-	std::println("{}", button.read());
-	assert(button.read() == 100);
-}
-
 // --------- SFINAE --------- 
+// Old Sfinae (C++11)
 template<typename T>
-class is_digital_input {
+class is_digital_input_old_sfinae {
 private:
 	template<typename U>
 	static auto test_init(int) -> decltype(std::declval<U>().init(), std::true_type{});
@@ -197,19 +168,38 @@ public:
 		decltype(test_read<T>(0))::value;
 };
 
-// C++17
-template<typename T>
-constexpr bool is_digital_input_2_v = 
-    requires(T t) { t.init(); t.read(); };
+// Newer Sfinae (C++17)
+template<typename T, typename = void>
+struct is_digital_input_new_sfinae : std::false_type {};
 
-// Or with concepts (C++20)
 template<typename T>
-concept digital_input_3 = requires(T t) { t.init(); t.read(); };
+struct is_digital_input_new_sfinae<T, std::void_t<
+    decltype(std::declval<T>().init()),
+    decltype(std::declval<T>().read())
+>> : std::true_type {};
 
-template <typename DIn, typename = std::enable_if_t<is_digital_input<DIn>::value>>
+template<typename T>
+constexpr bool is_digital_input_new_sfinae_v = is_digital_input_new_sfinae<T>::value;
+
+// Concepts (C++20)
+template<typename T>
+concept digital_input_concept = requires(T t) { t.init(); t.read(); };
+
+// ---- C++11 ---- 
+// template <typename DIn, typename = std::enable_if_t<is_digital_input_old_sfinae<DIn>::value>>
+// class ButtonWithSfinae {
+//     static_assert(is_digital_input_old_sfinae<DIn>::value, 
+//                   "DIn must have init() and read() methods");
+
+// ---- C++17 ---- 
+template <typename DIn, typename = std::enable_if_t<is_digital_input_new_sfinae_v<DIn>>>
 class ButtonWithSfinae {
-    static_assert(is_digital_input<DIn>::value, 
+    static_assert(is_digital_input_new_sfinae_v<DIn>, 
                   "DIn must have init() and read() methods");
+
+// ---- C++20 ---- 
+// template <digital_input_concept DIn>
+// class ButtonWithSfinae {
 public:
 	ButtonWithSfinae(DIn *input) : digitalInput_(input) {}
 
@@ -233,6 +223,37 @@ void test_button_sfinae() {
 	input.set_value(42);
 	std::cout << button.read() << std::endl;
 	assert(button.read() == 42);
+}
+
+// --------- CONCEPT --------- 
+template <typename T>
+concept DigitalInputConcept = requires {
+	{ std::declval<T>().init() } -> std::same_as<void>;
+	{ std::declval<T>().read() } -> std::same_as<int>;
+};
+
+template<DigitalInputConcept DIn>
+class ButtonWithConcept {
+public:
+	ButtonWithConcept(DIn* input): digitalInput_(input) {}
+	void init() {
+		digitalInput_->init();
+		// rest of logic...
+	}
+	int read() {
+		return digitalInput_->read();
+	}
+private:
+	DIn *digitalInput_;
+};
+
+void test_button_concept() {
+	MockedDigitalInput input;
+	ButtonWithConcept<MockedDigitalInput> button(&input);
+
+	input.set_value(100);
+	std::println("{}", button.read());
+	assert(button.read() == 100);
 }
 
 void test_malformed_button() {
